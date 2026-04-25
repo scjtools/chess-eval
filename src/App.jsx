@@ -65,6 +65,7 @@ export default function App() {
     const requestId = ++analysisIdRef.current;
 
     const timer = setTimeout(async () => {
+      setEvalResult(null);
       setThinking(true);
 
       try {
@@ -82,7 +83,7 @@ export default function App() {
           setThinking(false);
         }
       }
-    }, 420);
+    }, 800);
 
     return () => {
       cancelled = true;

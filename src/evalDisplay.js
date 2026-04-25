@@ -10,8 +10,7 @@ export function whiteShare(evalResult) {
 }
 
 export function scoreText(evalResult, thinking, ready) {
-  if (!ready || thinking) return '...';
-  if (!evalResult) return '0.00';
+  if (!ready || thinking || !evalResult) return '...';
 
   if (evalResult.type === 'mate') {
     return evalResult.value > 0 ? `M${evalResult.value}` : `M-${Math.abs(evalResult.value)}`;
@@ -33,10 +32,8 @@ export function scoreSide(evalResult) {
 export function engineInfoText(evalResult, thinking, ready, side) {
   const turn = sideName(side);
 
-  if (!ready) return `${ENGINE_NAME} • ${turn} • loading`;
-  if (thinking) return `${ENGINE_NAME} • ${turn} • analysing`;
+  if (!ready) return `${ENGINE_NAME} • starting • ${turn}`;
+  if (thinking) return `${ENGINE_NAME} • analysing • ${turn}`;
 
-  const depth = evalResult?.depth ? `depth ${evalResult.depth}` : 'depth —';
-
-  return `${ENGINE_NAME} • ${depth} • ${turn}`;
+  return `${ENGINE_NAME} • fast eval • ${turn}`;
 }
