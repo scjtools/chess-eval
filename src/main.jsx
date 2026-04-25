@@ -80,7 +80,7 @@ function useStockfish() {
 
   useEffect(() => {
     try {
-      const worker = new Worker('/vendor/stockfish-nnue-16-single.js');
+      const worker = new Worker('/vendor/stockfish-18-lite-single.js');
       workerRef.current = worker;
       worker.onmessage = (e) => {
         const line = String(e.data || '');

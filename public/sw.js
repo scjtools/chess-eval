@@ -2,8 +2,8 @@ const CACHE = 'evalcam-v1';
 const ASSETS = [
   '/',
   '/manifest.webmanifest',
-  '/vendor/stockfish-nnue-16-single.js',
-  '/vendor/stockfish-nnue-16-single.wasm',
+  '/vendor/stockfish-18-lite-single.js',
+  '/vendor/stockfish-18-lite-single.wasm',
   '/icon-192.png',
   '/icon-512.png'
 ];
