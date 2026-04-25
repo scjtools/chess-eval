@@ -15,15 +15,28 @@ const START = [
 
 const EMPTY = Array.from({ length: 8 }, () => Array(8).fill(''));
 
-const PIECES = ['K','Q','R','B','N','P','k','q','r','b','n','p'];
+const TRAY = ['K','Q','R','B','N','P','k','q','r','b','n','p'];
 
-const UNICODE = {
-  K:'♔', Q:'♕', R:'♖', B:'♗', N:'♘', P:'♙',
-  k:'♚', q:'♛', r:'♜', b:'♝', n:'♞', p:'♟', '':''
+const GLYPH = {
+  k: '♚',
+  q: '♛',
+  r: '♜',
+  b: '♝',
+  n: '♞',
+  p: '♟'
 };
 
 function cloneBoard(board) {
   return board.map(row => [...row]);
+}
+
+function isWhite(piece) {
+  return piece && piece === piece.toUpperCase();
+}
+
+function pieceGlyph(piece) {
+  if (!piece) return '';
+  return GLYPH[piece.toLowerCase()];
 }
 
 function boardToFen(board, side) {
@@ -59,7 +72,6 @@ function scoreLabel(ev) {
 
   const score = ev.cp / 100;
   if (Math.abs(score) < 0.05) return '0.00';
-
   return score > 0 ? `+${score.toFixed(2)}` : score.toFixed(2);
 }
 
@@ -72,13 +84,11 @@ function detailLabel(ev) {
 
   const score = ev.cp / 100;
   if (Math.abs(score) < 0.15) return 'Equal';
-
   return score > 0 ? `White +${score.toFixed(2)}` : `Black +${Math.abs(score).toFixed(2)}`;
 }
 
 function whiteShare(ev) {
   if (!ev) return 50;
-
   if (ev.type === 'mate') return ev.value > 0 ? 98 : 2;
 
   const pawns = Math.max(-6, Math.min(6, ev.cp / 100));
@@ -131,7 +141,7 @@ function useStockfish() {
       };
 
       worker.onerror = () => {
-        setEngineError('Engine failed to load');
+        setEngineError('Engine failed');
         setReady(false);
       };
 
@@ -231,7 +241,6 @@ function App() {
 
   function beginDrag(event, piece, from = null) {
     event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
     setTapPiece(piece);
     setDragging({
       piece,
@@ -265,7 +274,7 @@ function App() {
 
   return (
     <div className="page">
-      <main className="shell">
+      <main className="app">
         <section className="evalBar" aria-label="Evaluation bar">
           <div className="whiteEval" style={{ width: `${share}%` }} />
           <div className="blackEval" />
@@ -278,7 +287,6 @@ function App() {
         <section className="board">
           {board.map((row, r) => row.map((piece, c) => {
             const dark = (r + c) % 2 === 1;
-
             return (
               <button
                 key={`${r}-${c}`}
@@ -288,10 +296,10 @@ function App() {
               >
                 {piece && (
                   <span
-                    className="piece"
+                    className={`piece ${isWhite(piece) ? 'whitePiece' : 'blackPiece'}`}
                     onPointerDown={(event) => beginDrag(event, piece, [r, c])}
                   >
-                    {UNICODE[piece]}
+                    {pieceGlyph(piece)}
                   </span>
                 )}
               </button>
@@ -299,36 +307,34 @@ function App() {
           }))}
         </section>
 
-        <section className="controls">
-          <div className="turnToggle">
-            <button className={side === 'w' ? 'active' : ''} onClick={() => { setSide('w'); setEvalResult(null); }}>
-              White to move
-            </button>
-            <button className={side === 'b' ? 'active' : ''} onClick={() => { setSide('b'); setEvalResult(null); }}>
-              Black to move
-            </button>
-          </div>
-
-          <button className="analyse" onClick={runEval} disabled={!ready || thinking}>
-            {thinking ? 'Analysing…' : ready ? 'Analyse' : (engineError || 'Loading engine…')}
+        <div className="turnToggle">
+          <button className={side === 'w' ? 'active' : ''} onClick={() => { setSide('w'); setEvalResult(null); }}>
+            White to move
           </button>
+          <button className={side === 'b' ? 'active' : ''} onClick={() => { setSide('b'); setEvalResult(null); }}>
+            Black to move
+          </button>
+        </div>
 
-          <div className="smallButtons">
-            <button onClick={() => { setBoard(cloneBoard(START)); setEvalResult(null); }}>Start</button>
-            <button onClick={() => { setBoard(cloneBoard(EMPTY)); setEvalResult(null); }}>Empty</button>
-            <button data-trash>Drag here to remove</button>
-          </div>
-        </section>
+        <button className="analyse" onClick={runEval} disabled={!ready || thinking}>
+          {thinking ? 'Analysing…' : ready ? 'Analyse' : (engineError || 'Loading…')}
+        </button>
+
+        <div className="smallButtons">
+          <button onClick={() => { setBoard(cloneBoard(START)); setEvalResult(null); }}>Start</button>
+          <button onClick={() => { setBoard(cloneBoard(EMPTY)); setEvalResult(null); }}>Empty</button>
+          <button data-trash>Remove</button>
+        </div>
 
         <section className="pieceTray">
-          {PIECES.map(piece => (
+          {TRAY.map(piece => (
             <button
               key={piece}
-              className={`trayPiece ${tapPiece === piece ? 'selected' : ''}`}
+              className={`trayPiece ${isWhite(piece) ? 'whitePiece' : 'blackPiece'} ${tapPiece === piece ? 'selected' : ''}`}
               onClick={() => setTapPiece(piece)}
               onPointerDown={(event) => beginDrag(event, piece, null)}
             >
-              {UNICODE[piece]}
+              {pieceGlyph(piece)}
             </button>
           ))}
         </section>
@@ -336,12 +342,12 @@ function App() {
 
       {dragging && (
         <div
-          className="dragGhost"
+          className={`dragGhost ${isWhite(dragging.piece) ? 'whitePiece' : 'blackPiece'}`}
           style={{
             transform: `translate(${dragging.x - 28}px, ${dragging.y - 34}px)`
           }}
         >
-          {UNICODE[dragging.piece]}
+          {pieceGlyph(dragging.piece)}
         </div>
       )}
     </div>
