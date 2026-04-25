@@ -38,8 +38,44 @@ function boardToFen(board) {
     return out;
   });
 
-  // Minimal position evaluator: white to move. No castling/en-passant state.
   return `${rows.join('/')} w - - 0 1`;
+}
+
+function fenToBoard(fen) {
+  const first = fen.trim().split(/\s+/)[0];
+  const rows = first.split('/');
+
+  if (rows.length !== 8) {
+    throw new Error('FEN needs 8 rows');
+  }
+
+  return rows.map(row => {
+    const out = [];
+
+    for (const ch of row) {
+      if (/\d/.test(ch)) {
+        out.push(...Array(Number(ch)).fill(''));
+      } else if ('prnbqkPRNBQK'.includes(ch)) {
+        out.push(ch);
+      } else {
+        throw new Error('Invalid FEN piece');
+      }
+    }
+
+    if (out.length !== 8) {
+      throw new Error('Each FEN row needs 8 squares');
+    }
+
+    return out;
+  });
+}
+
+function tryFenToBoard(fen) {
+  try {
+    return fenToBoard(fen);
+  } catch {
+    return null;
+  }
 }
 
 function imgCode(piece) {
@@ -74,15 +110,20 @@ function scoreText(ev, thinking, ready) {
   return pawns > 0 ? `+${pawns.toFixed(2)}` : pawns.toFixed(2);
 }
 
-function useStockfish() {
+function useStockfish(engineKey) {
   const workerRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [engineError, setEngineError] = useState('');
   const resolveRef = useRef(null);
+  const timeoutRef = useRef(null);
   const lastScoreRef = useRef(null);
 
   useEffect(() => {
     let worker;
+
+    setReady(false);
+    setEngineError('');
+    lastScoreRef.current = null;
 
     try {
       worker = new Worker('/vendor/stockfish-18-lite-single.js');
@@ -111,6 +152,7 @@ function useStockfish() {
         }
 
         if (line.startsWith('bestmove') && resolveRef.current) {
+          clearTimeout(timeoutRef.current);
           resolveRef.current(lastScoreRef.current || { type: 'cp', cp: 0 });
           resolveRef.current = null;
         }
@@ -127,9 +169,14 @@ function useStockfish() {
     }
 
     return () => {
+      clearTimeout(timeoutRef.current);
+      if (resolveRef.current) {
+        resolveRef.current(null);
+        resolveRef.current = null;
+      }
       if (worker) worker.terminate();
     };
-  }, []);
+  }, [engineKey]);
 
   function analyse(fen) {
     return new Promise((resolve, reject) => {
@@ -138,8 +185,16 @@ function useStockfish() {
         return;
       }
 
+      clearTimeout(timeoutRef.current);
       lastScoreRef.current = null;
       resolveRef.current = resolve;
+
+      timeoutRef.current = setTimeout(() => {
+        if (resolveRef.current) {
+          resolveRef.current(lastScoreRef.current);
+          resolveRef.current = null;
+        }
+      }, 2600);
 
       workerRef.current.postMessage('stop');
       workerRef.current.postMessage('ucinewgame');
@@ -154,21 +209,28 @@ function useStockfish() {
 function App() {
   const boardRef = useRef(null);
   const [board, setBoard] = useState(cloneBoard(START));
+  const [fenText, setFenText] = useState(boardToFen(START));
   const [flipped, setFlipped] = useState(false);
   const [drag, setDrag] = useState(null);
   const [evalResult, setEvalResult] = useState(null);
   const [thinking, setThinking] = useState(false);
-  const { analyse, ready } = useStockfish();
+  const [engineKey, setEngineKey] = useState(0);
+  const { analyse, ready } = useStockfish(engineKey);
 
   const fen = useMemo(() => boardToFen(board), [board]);
   const share = whiteShare(evalResult);
   const displayBoard = flipped ? [...Array(64).keys()].reverse() : [...Array(64).keys()];
+  const scoreOnBlack = share < 25;
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    setFenText(fen);
+  }, [fen]);
 
   useEffect(() => {
     if (!ready) return;
@@ -179,7 +241,7 @@ function App() {
 
       try {
         const result = await analyse(fen);
-        if (!cancelled) setEvalResult(result);
+        if (!cancelled) setEvalResult(result || null);
       } catch {
         if (!cancelled) setEvalResult(null);
       } finally {
@@ -191,7 +253,7 @@ function App() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [fen, ready]);
+  }, [fen, ready, engineKey]);
 
   useEffect(() => {
     function onPointerMove(event) {
@@ -225,7 +287,6 @@ function App() {
         const boardC = flipped ? 7 - file : file;
 
         if (boardR >= 0 && boardR < 8 && boardC >= 0 && boardC < 8) {
-          const [fromR, fromC] = drag.from;
           const isKing = drag.piece === 'K' || drag.piece === 'k';
           const isCastle = isKing && fromR === boardR && Math.abs(boardC - fromC) === 2;
 
@@ -275,12 +336,31 @@ function App() {
     setEvalResult(null);
   }
 
+  function restartEngine() {
+    setThinking(false);
+    setEvalResult(null);
+    setEngineKey(value => value + 1);
+  }
+
+  function handleFenChange(event) {
+    const value = event.target.value;
+    setFenText(value);
+
+    const parsed = tryFenToBoard(value);
+    if (parsed) {
+      setBoard(parsed);
+      setEvalResult(null);
+    }
+  }
+
   return (
     <main className="app">
       <section className="eval">
         <div className="evalWhite" style={{ width: `${share}%` }} />
         <div className="evalBlack" />
-        <div className="evalNumber">{scoreText(evalResult, thinking, ready)}</div>
+        <div className={`evalNumber ${scoreOnBlack ? 'onBlack' : 'onWhite'}`}>
+          {scoreText(evalResult, thinking, ready)}
+        </div>
       </section>
 
       <section className="board" ref={boardRef}>
@@ -310,7 +390,18 @@ function App() {
       <section className="toolbar">
         <button onClick={() => setFlipped(value => !value)}>Flip</button>
         <button onClick={reset}>Reset</button>
+        <button onClick={restartEngine}>Engine</button>
       </section>
+
+      <input
+        className="fenInput"
+        value={fenText}
+        onChange={handleFenChange}
+        spellCheck="false"
+        autoCapitalize="off"
+        autoCorrect="off"
+        placeholder="Paste FEN"
+      />
 
       {drag && (
         <img
@@ -328,4 +419,3 @@ function App() {
 }
 
 createRoot(document.getElementById('root')).render(<App />);
-

@@ -24,7 +24,8 @@ body {
   overflow: hidden;
 }
 
-button {
+button,
+input {
   font: inherit;
   -webkit-tap-highlight-color: transparent;
 }
@@ -35,7 +36,7 @@ button {
   margin: 0 auto;
   padding: max(8px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
   display: grid;
-  grid-template-rows: 40px auto 44px;
+  grid-template-rows: 40px auto 44px 38px;
   gap: 8px;
   align-content: start;
 }
@@ -67,11 +68,18 @@ button {
   height: 100%;
   display: flex;
   align-items: center;
-  color: #111;
   font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.04em;
   pointer-events: none;
+}
+
+.evalNumber.onWhite {
+  color: #111;
+}
+
+.evalNumber.onBlack {
+  color: #fff;
 }
 
 .board {
@@ -124,7 +132,7 @@ button {
 
 .toolbar {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
 }
 
@@ -141,16 +149,31 @@ button {
   background: var(--buttonActive);
 }
 
+.fenInput {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  background: #211f1d;
+  color: #f2f2f2;
+  padding: 0 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.fenInput:focus {
+  box-shadow: inset 0 0 0 2px #6b8f50;
+}
+
 @media (max-width: 390px) {
   .app {
     padding-left: 6px;
     padding-right: 6px;
     gap: 7px;
-    grid-template-rows: 38px auto 42px;
+    grid-template-rows: 38px auto 42px 36px;
   }
 
   .eval {
     height: 38px;
   }
 }
-
