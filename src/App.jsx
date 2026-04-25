@@ -165,17 +165,20 @@ export default function App() {
     };
   }, [drag, fen, flipped, history, historyIndex]);
 
-  function getDropSquare(event, rect) {
+  function getDropSquare(point, rect) {
+    const x = point.clientX ?? point.x;
+    const y = point.clientY ?? point.y;
+
     const insideBoard =
-      event.clientX >= rect.left &&
-      event.clientX <= rect.right &&
-      event.clientY >= rect.top &&
-      event.clientY <= rect.bottom;
+      x >= rect.left &&
+      x <= rect.right &&
+      y >= rect.top &&
+      y <= rect.bottom;
 
     if (!insideBoard) return null;
 
-    const file = Math.floor(((event.clientX - rect.left) / rect.width) * 8);
-    const rank = Math.floor(((event.clientY - rect.top) / rect.height) * 8);
+    const file = Math.floor(((x - rect.left) / rect.width) * 8);
+    const rank = Math.floor(((y - rect.top) / rect.height) * 8);
 
     return {
       r: flipped ? 7 - rank : rank,
