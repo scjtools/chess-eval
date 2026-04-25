@@ -17,6 +17,9 @@ const PROMOTIONS = ['q', 'r', 'b', 'n'];
 
 export default function App() {
   const boardRef = useRef(null);
+  const dragGhostRef = useRef(null);
+  const latestPointerRef = useRef(null);
+  const rafRef = useRef(null);
   const analysisIdRef = useRef(0);
 
   const [fen, setFen] = useState(START_FEN);
@@ -95,11 +98,23 @@ export default function App() {
     function onPointerMove(event) {
       if (!drag) return;
 
-      setDrag(current => current ? {
-        ...current,
+      latestPointerRef.current = {
         x: event.clientX,
         y: event.clientY,
-      } : current);
+      };
+
+      if (rafRef.current) return;
+
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+
+        const point = latestPointerRef.current;
+        const ghost = dragGhostRef.current;
+
+        if (!point || !ghost) return;
+
+        ghost.style.transform = `translate3d(${point.x - 34}px, ${point.y - 34}px, 0)`;
+      });
     }
 
     function onPointerUp(event) {
@@ -111,8 +126,10 @@ export default function App() {
         return;
       }
 
-      const target = getDropSquare(event, rect);
+      const point = latestPointerRef.current || { x: event.clientX, y: event.clientY };
+      const target = getDropSquare(point, rect);
       setDrag(null);
+      latestPointerRef.current = null;
 
       if (!target) return;
 
@@ -140,6 +157,11 @@ export default function App() {
     return () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, [drag, fen, flipped, history, historyIndex]);
 
@@ -177,12 +199,17 @@ export default function App() {
   function startDrag(event, row, col, piece) {
     event.preventDefault();
 
+    latestPointerRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+
     setDrag({
       piece,
       fromR: row,
       fromC: col,
-      x: event.clientX,
-      y: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
     });
   }
 
@@ -320,12 +347,13 @@ export default function App() {
 
       {drag && (
         <img
+          ref={dragGhostRef}
           className="dragPiece"
           src={pieceImageUrl(drag.piece)}
           alt=""
           draggable="false"
           style={{
-            transform: `translate(${drag.x - 34}px, ${drag.y - 34}px)`,
+            transform: `translate3d(${drag.startX - 34}px, ${drag.startY - 34}px, 0)`,
           }}
         />
       )}

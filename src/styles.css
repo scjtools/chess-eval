@@ -131,6 +131,9 @@ input {
   user-select: none;
   cursor: grab;
   z-index: 2;
+  -webkit-user-drag: none;
+  user-drag: none;
+  will-change: transform;
   will-change: transform;
 }
 
@@ -145,6 +148,8 @@ input {
   z-index: 9999;
   will-change: transform;
   transform-origin: center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   filter: drop-shadow(0 6px 7px rgba(0,0,0,0.35));
 }
 
