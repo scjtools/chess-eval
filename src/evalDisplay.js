@@ -1,5 +1,5 @@
 import { ENGINE_NAME } from './constants.js';
-import { sideName } from './chess.js';
+import { sideName } from './chessHelpers.js';
 
 export function whiteShare(evalResult) {
   if (!evalResult) return 50;

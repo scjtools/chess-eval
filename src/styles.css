@@ -196,6 +196,40 @@ input {
   text-overflow: ellipsis;
 }
 
+.promotionOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,0.28);
+}
+
+.promotionBox {
+  display: grid;
+  grid-template-columns: repeat(4, 64px);
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #262421;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+}
+
+.promotionBox button {
+  width: 64px;
+  height: 64px;
+  border: 0;
+  border-radius: 8px;
+  background: #eeeed2;
+  padding: 4px;
+}
+
+.promotionBox img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 @media (max-width: 390px) {
   .app {
     padding-left: 6px;
@@ -219,5 +253,14 @@ input {
   .engineInfo {
     height: 21px;
     font-size: 11.5px;
+  }
+
+  .promotionBox {
+    grid-template-columns: repeat(4, 58px);
+  }
+
+  .promotionBox button {
+    width: 58px;
+    height: 58px;
   }
 }

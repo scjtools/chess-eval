@@ -1,48 +1,40 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { INITIAL_CASTLING, INITIAL_EN_PASSANT, START_BOARD, pieceImageUrl } from './constants.js';
+import { START_FEN, pieceImageUrl } from './constants.js';
 import {
-  boardToFen,
-  cloneBoard,
-  clonePosition,
-  enPassantAfterMove,
-  enPassantCapturedPawnSquare,
-  isEnPassantCapture,
-  oppositeSide,
-  tryFenToPosition,
-  updateCastlingRights,
-} from './chess.js';
+  boardFromFen,
+  isPromotionMove,
+  legalMoveExists,
+  makeGame,
+  moveFen,
+  pieceChar,
+  squareName,
+  tryParseFen,
+} from './chessHelpers.js';
 import { engineInfoText, scoreSide, scoreText, whiteShare } from './evalDisplay.js';
 import { useStockfish } from './useStockfish.js';
 
-function initialPosition() {
-  return {
-    board: cloneBoard(START_BOARD),
-    side: 'w',
-    castling: INITIAL_CASTLING,
-    enPassant: INITIAL_EN_PASSANT,
-  };
-}
+const PROMOTIONS = ['q', 'r', 'b', 'n'];
 
 export default function App() {
   const boardRef = useRef(null);
   const analysisIdRef = useRef(0);
 
-  const [position, setPosition] = useState(initialPosition);
-  const [history, setHistory] = useState([initialPosition()]);
+  const [fen, setFen] = useState(START_FEN);
+  const [fenText, setFenText] = useState(START_FEN);
+  const [history, setHistory] = useState([START_FEN]);
   const [historyIndex, setHistoryIndex] = useState(0);
-  const [fenText, setFenText] = useState(boardToFen(START_BOARD, 'w', INITIAL_CASTLING, INITIAL_EN_PASSANT));
   const [flipped, setFlipped] = useState(false);
   const [drag, setDrag] = useState(null);
+  const [pendingPromotion, setPendingPromotion] = useState(null);
   const [evalResult, setEvalResult] = useState(null);
   const [thinking, setThinking] = useState(false);
   const [engineKey, setEngineKey] = useState(0);
 
-  const { analyse, ready } = useStockfish(engineKey, position.side);
+  const game = useMemo(() => makeGame(fen), [fen]);
+  const board = useMemo(() => boardFromFen(fen), [fen]);
+  const side = game.turn();
 
-  const fen = useMemo(
-    () => boardToFen(position.board, position.side, position.castling, position.enPassant),
-    [position]
-  );
+  const { analyse, ready } = useStockfish(engineKey, side);
 
   const share = whiteShare(evalResult);
   const displayBoard = flipped ? [...Array(64).keys()].reverse() : [...Array(64).keys()];
@@ -61,7 +53,7 @@ export default function App() {
   }, [fen]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || pendingPromotion) return;
 
     let cancelled = false;
     const requestId = ++analysisIdRef.current;
@@ -90,7 +82,7 @@ export default function App() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [fen, ready, engineKey]);
+  }, [fen, ready, engineKey, pendingPromotion]);
 
   useEffect(() => {
     function onPointerMove(event) {
@@ -112,12 +104,27 @@ export default function App() {
         return;
       }
 
-      const nextPosition = buildDroppedPosition(event, rect);
+      const target = getDropSquare(event, rect);
       setDrag(null);
 
-      if (!nextPosition) return;
+      if (!target) return;
 
-      commitPosition(nextPosition);
+      const from = squareName(drag.fromR, drag.fromC);
+      const to = squareName(target.r, target.c);
+
+      if (!legalMoveExists(fen, from, to)) return;
+
+      if (isPromotionMove(fen, from, to)) {
+        setPendingPromotion({
+          from,
+          to,
+          color: drag.piece === drag.piece.toUpperCase() ? 'w' : 'b',
+        });
+        return;
+      }
+
+      const nextFen = moveFen(fen, from, to);
+      if (nextFen) commitFen(nextFen);
     }
 
     window.addEventListener('pointermove', onPointerMove);
@@ -127,121 +134,66 @@ export default function App() {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-  }, [drag, position, flipped, history, historyIndex]);
+  }, [drag, fen, flipped, history, historyIndex]);
 
-  function buildDroppedPosition(event, rect) {
+  function getDropSquare(event, rect) {
     const insideBoard =
       event.clientX >= rect.left &&
       event.clientX <= rect.right &&
       event.clientY >= rect.top &&
       event.clientY <= rect.bottom;
 
-    const nextBoard = cloneBoard(position.board);
-    const [fromR, fromC] = drag.from;
-    const movingPiece = drag.piece;
-
-    nextBoard[fromR][fromC] = '';
-
-    if (!insideBoard) {
-      return {
-        board: nextBoard,
-        side: position.side,
-        castling: updateCastlingRights(position.castling, {
-          piece: movingPiece,
-          fromR,
-          fromC,
-          toR: null,
-          toC: null,
-          capturedPiece: '',
-        }),
-        enPassant: '-',
-      };
-    }
+    if (!insideBoard) return null;
 
     const file = Math.floor(((event.clientX - rect.left) / rect.width) * 8);
     const rank = Math.floor(((event.clientY - rect.top) / rect.height) * 8);
-    const toR = flipped ? 7 - rank : rank;
-    const toC = flipped ? 7 - file : file;
-
-    if (toR < 0 || toR > 7 || toC < 0 || toC > 7) return null;
-
-    if (toR === fromR && toC === fromC) {
-      nextBoard[fromR][fromC] = movingPiece;
-      return null;
-    }
-
-    let capturedPiece = position.board[toR][toC];
-
-    const epCapture = isEnPassantCapture({
-      piece: movingPiece,
-      fromR,
-      fromC,
-      toR,
-      toC,
-      capturedPiece,
-    }, position.enPassant);
-
-    if (epCapture) {
-      const [capR, capC] = enPassantCapturedPawnSquare(movingPiece, toR, toC);
-      capturedPiece = nextBoard[capR][capC];
-      nextBoard[capR][capC] = '';
-    }
-
-    const isKing = movingPiece === 'K' || movingPiece === 'k';
-    const isCastle = isKing && fromR === toR && Math.abs(toC - fromC) === 2;
-
-    nextBoard[toR][toC] = movingPiece;
-
-    if (isCastle) {
-      moveCastlingRook(nextBoard, movingPiece, toR, toC, fromC);
-    }
-
-    const move = {
-      piece: movingPiece,
-      fromR,
-      fromC,
-      toR,
-      toC,
-      capturedPiece,
-    };
 
     return {
-      board: nextBoard,
-      side: oppositeSide(position.side),
-      castling: updateCastlingRights(position.castling, move),
-      enPassant: enPassantAfterMove(move),
+      r: flipped ? 7 - rank : rank,
+      c: flipped ? 7 - file : file,
     };
   }
 
-  function commitPosition(nextPosition) {
-    const clean = clonePosition(nextPosition);
+  function commitFen(nextFen) {
+    const parsed = tryParseFen(nextFen);
+    if (!parsed) return;
+
     const nextHistory = history.slice(0, historyIndex + 1);
-    nextHistory.push(clean);
+    nextHistory.push(parsed);
 
     setHistory(nextHistory);
     setHistoryIndex(nextHistory.length - 1);
-    setPosition(clean);
+    setFen(parsed);
     setEvalResult(null);
   }
 
-  function startDrag(event, r, c, piece) {
+  function startDrag(event, row, col, piece) {
     event.preventDefault();
 
     setDrag({
       piece,
-      from: [r, c],
+      fromR: row,
+      fromC: col,
       x: event.clientX,
       y: event.clientY,
     });
   }
 
-  function reset() {
-    const fresh = initialPosition();
+  function choosePromotion(promotion) {
+    if (!pendingPromotion) return;
 
-    setPosition(fresh);
-    setHistory([fresh]);
+    const nextFen = moveFen(fen, pendingPromotion.from, pendingPromotion.to, promotion);
+    setPendingPromotion(null);
+
+    if (nextFen) commitFen(nextFen);
+  }
+
+  function reset() {
+    setFen(START_FEN);
+    setHistory([START_FEN]);
     setHistoryIndex(0);
     setEvalResult(null);
+    setPendingPromotion(null);
   }
 
   function restartEngine() {
@@ -254,37 +206,34 @@ export default function App() {
     if (!canGoBack) return;
 
     const nextIndex = historyIndex - 1;
-    const nextPosition = clonePosition(history[nextIndex]);
-
     setHistoryIndex(nextIndex);
-    setPosition(nextPosition);
+    setFen(history[nextIndex]);
     setEvalResult(null);
+    setPendingPromotion(null);
   }
 
   function goForward() {
     if (!canGoForward) return;
 
     const nextIndex = historyIndex + 1;
-    const nextPosition = clonePosition(history[nextIndex]);
-
     setHistoryIndex(nextIndex);
-    setPosition(nextPosition);
+    setFen(history[nextIndex]);
     setEvalResult(null);
+    setPendingPromotion(null);
   }
 
   function handleFenChange(event) {
     const value = event.target.value;
     setFenText(value);
 
-    const parsed = tryFenToPosition(value);
+    const parsed = tryParseFen(value);
     if (!parsed) return;
 
-    const clean = clonePosition(parsed);
-
-    setPosition(clean);
-    setHistory([clean]);
+    setFen(parsed);
+    setHistory([parsed]);
     setHistoryIndex(0);
     setEvalResult(null);
+    setPendingPromotion(null);
   }
 
   return (
@@ -301,9 +250,10 @@ export default function App() {
         {displayBoard.map(index => {
           const r = Math.floor(index / 8);
           const c = index % 8;
-          const piece = position.board[r][c];
+          const square = board[r][c];
+          const piece = pieceChar(square);
           const dark = (r + c) % 2 === 1;
-          const beingDragged = drag && drag.from[0] === r && drag.from[1] === c;
+          const beingDragged = drag && drag.fromR === r && drag.fromC === c;
 
           return (
             <div key={`${r}-${c}`} className={`square ${dark ? 'dark' : 'light'}`}>
@@ -340,8 +290,26 @@ export default function App() {
       />
 
       <div className="engineInfo">
-        {engineInfoText(evalResult, thinking, ready, position.side)}
+        {engineInfoText(evalResult, thinking, ready, side)}
       </div>
+
+      {pendingPromotion && (
+        <section className="promotionOverlay">
+          <div className="promotionBox">
+            {PROMOTIONS.map(promotion => {
+              const piece = pendingPromotion.color === 'w'
+                ? promotion.toUpperCase()
+                : promotion;
+
+              return (
+                <button key={promotion} onClick={() => choosePromotion(promotion)}>
+                  <img src={pieceImageUrl(piece)} alt="" draggable="false" />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {drag && (
         <img
@@ -356,16 +324,4 @@ export default function App() {
       )}
     </main>
   );
-}
-
-function moveCastlingRook(board, king, row, kingToC, kingFromC) {
-  const kingside = kingToC > kingFromC;
-  const rookFromC = kingside ? 7 : 0;
-  const rookToC = kingside ? kingToC - 1 : kingToC + 1;
-  const expectedRook = king === 'K' ? 'R' : 'r';
-
-  if (board[row][rookFromC] === expectedRook) {
-    board[row][rookFromC] = '';
-    board[row][rookToC] = expectedRook;
-  }
 }
