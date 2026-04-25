@@ -1,43 +1,26 @@
-# EvalCam
+# Chess Eval
 
-Offline iPhone-first chess evaluation PWA.
+A simple iPhone-first chess evaluation page.
 
-What it does now:
+## Current behaviour
 
-- manual board setup
-- photo/screenshot reference input
-- FEN backup
-- local Stockfish eval
-- chess.com-style horizontal eval bar
-- no best move, no arrows, no cloud, no accounts
+- Fixed square chessboard
+- Drag pieces to move
+- Castling moves the rook automatically
+- Side to move alternates after each board move
+- FEN input updates from board moves
+- Pasted FEN updates the board and side to move
+- Local Stockfish eval runs automatically
+- Eval bar only shows the score, no best move
 
-## Install on iPhone
-
-Easiest route:
-
-1. Create a GitHub repo and upload this folder.
-2. Import the repo into Vercel.
-3. Vercel will run `npm install` and `npm run build`.
-4. Open the Vercel URL in Safari on your iPhone.
-5. Tap Share → Add to Home Screen.
-6. Open EvalCam once while online so Safari caches the files.
-7. After that, it should run offline.
-
-## Local run on Mac
+## Commands
 
 ```bash
 npm install
 npm run dev
+npm run build
 ```
 
-Then open the shown local URL.
+## Notes
 
-## Current limitation
-
-The camera/photo button currently attaches a reference image. It does not yet auto-detect the pieces. That is the next stage. The correct product flow is still already there:
-
-photo → manual correction → local eval.
-
-## Stockfish licensing
-
-Stockfish is GPL-3.0. For private personal use this is fine. If you distribute the app publicly, handle GPL compliance properly.
+The app uses Stockfish locally through WASM. Piece images are loaded from the Chess.com Neo piece theme URL.
