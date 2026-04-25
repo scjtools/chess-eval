@@ -1,4 +1,4 @@
-import { ENGINE_HASH_MB, ENGINE_MOVETIME_MS, ENGINE_NAME, ENGINE_THREADS } from './constants.js';
+import { ENGINE_NAME } from './constants.js';
 import { sideName } from './chess.js';
 
 export function whiteShare(evalResult) {
@@ -31,18 +31,12 @@ export function scoreSide(evalResult) {
 }
 
 export function engineInfoText(evalResult, thinking, ready, side) {
-  const base = `${ENGINE_NAME} • ${ENGINE_THREADS} thread • ${ENGINE_HASH_MB} MB • ${sideName(side)}`;
+  const turn = sideName(side);
 
-  if (!ready) return `${base} • loading`;
-  if (thinking) return `${base} • analysing`;
-  if (!evalResult) return `${base} • ${(ENGINE_MOVETIME_MS / 1000).toFixed(2)}s`;
+  if (!ready) return `${ENGINE_NAME} • ${turn} • loading`;
+  if (thinking) return `${ENGINE_NAME} • ${turn} • analysing`;
 
-  const time = evalResult.timeMs
-    ? `${(evalResult.timeMs / 1000).toFixed(2)}s`
-    : `${(ENGINE_MOVETIME_MS / 1000).toFixed(2)}s`;
+  const depth = evalResult?.depth ? `depth ${evalResult.depth}` : 'depth —';
 
-  const depth = evalResult.depth ? `depth ${evalResult.depth}` : 'depth —';
-  const nodes = evalResult.nodes ? ` • ${evalResult.nodes.toLocaleString()} nodes` : '';
-
-  return `${base} • ${time} • ${depth}${nodes}`;
+  return `${ENGINE_NAME} • ${depth} • ${turn}`;
 }
