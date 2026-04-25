@@ -13,78 +13,43 @@ const START = [
   ['R','N','B','Q','K','B','N','R'],
 ];
 
-const EMPTY = Array.from({ length: 8 }, () => Array(8).fill(''));
-
-const TRAY = ['K','Q','R','B','N','P','k','q','r','b','n','p'];
-
-const GLYPH = {
-  k: '♚',
-  q: '♛',
-  r: '♜',
-  b: '♝',
-  n: '♞',
-  p: '♟'
-};
-
 function cloneBoard(board) {
   return board.map(row => [...row]);
 }
 
-function isWhite(piece) {
-  return piece && piece === piece.toUpperCase();
-}
-
-function pieceGlyph(piece) {
-  if (!piece) return '';
-  return GLYPH[piece.toLowerCase()];
-}
-
-function boardToFen(board, side) {
+function boardToFen(board) {
   const rows = board.map(row => {
     let out = '';
-    let empty = 0;
+    let empties = 0;
 
     for (const piece of row) {
       if (!piece) {
-        empty++;
+        empties += 1;
       } else {
-        if (empty) {
-          out += empty;
-          empty = 0;
+        if (empties) {
+          out += empties;
+          empties = 0;
         }
         out += piece;
       }
     }
 
-    if (empty) out += empty;
+    if (empties) out += empties;
     return out;
   });
 
-  return `${rows.join('/')} ${side} - - 0 1`;
+  // Minimal position evaluator: white to move. No castling/en-passant state.
+  return `${rows.join('/')} w - - 0 1`;
 }
 
-function scoreLabel(ev) {
-  if (!ev) return '0.00';
-
-  if (ev.type === 'mate') {
-    return ev.value > 0 ? `M${ev.value}` : `M-${Math.abs(ev.value)}`;
-  }
-
-  const score = ev.cp / 100;
-  if (Math.abs(score) < 0.05) return '0.00';
-  return score > 0 ? `+${score.toFixed(2)}` : score.toFixed(2);
+function imgCode(piece) {
+  if (!piece) return '';
+  const color = piece === piece.toUpperCase() ? 'w' : 'b';
+  return `${color}${piece.toLowerCase()}`;
 }
 
-function detailLabel(ev) {
-  if (!ev) return 'Equal';
-
-  if (ev.type === 'mate') {
-    return ev.value > 0 ? `White mate in ${ev.value}` : `Black mate in ${Math.abs(ev.value)}`;
-  }
-
-  const score = ev.cp / 100;
-  if (Math.abs(score) < 0.15) return 'Equal';
-  return score > 0 ? `White +${score.toFixed(2)}` : `Black +${Math.abs(score).toFixed(2)}`;
+function pieceSrc(piece) {
+  return `https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${imgCode(piece)}.png`;
 }
 
 function whiteShare(ev) {
@@ -92,7 +57,21 @@ function whiteShare(ev) {
   if (ev.type === 'mate') return ev.value > 0 ? 98 : 2;
 
   const pawns = Math.max(-6, Math.min(6, ev.cp / 100));
-  return Math.max(3, Math.min(97, 50 + (pawns / 6) * 50));
+  return Math.max(2, Math.min(98, 50 + (pawns / 6) * 50));
+}
+
+function scoreText(ev, thinking, ready) {
+  if (!ready) return '...';
+  if (thinking) return '...';
+  if (!ev) return '0.00';
+
+  if (ev.type === 'mate') {
+    return ev.value > 0 ? `M${ev.value}` : `M-${Math.abs(ev.value)}`;
+  }
+
+  const pawns = ev.cp / 100;
+  if (Math.abs(pawns) < 0.05) return '0.00';
+  return pawns > 0 ? `+${pawns.toFixed(2)}` : pawns.toFixed(2);
 }
 
 function useStockfish() {
@@ -101,7 +80,6 @@ function useStockfish() {
   const [engineError, setEngineError] = useState('');
   const resolveRef = useRef(null);
   const lastScoreRef = useRef(null);
-  const sideRef = useRef('w');
 
   useEffect(() => {
     let worker;
@@ -124,14 +102,12 @@ function useStockfish() {
           setReady(true);
         }
 
-        const match = line.match(/score (cp|mate) (-?\d+)/);
-        if (match) {
-          const raw = Number(match[2]);
-          const sign = sideRef.current === 'w' ? 1 : -1;
-
-          lastScoreRef.current = match[1] === 'cp'
-            ? { type: 'cp', cp: raw * sign }
-            : { type: 'mate', value: raw * sign };
+        const score = line.match(/score (cp|mate) (-?\d+)/);
+        if (score) {
+          const raw = Number(score[2]);
+          lastScoreRef.current = score[1] === 'cp'
+            ? { type: 'cp', cp: raw }
+            : { type: 'mate', value: raw };
         }
 
         if (line.startsWith('bestmove') && resolveRef.current) {
@@ -141,13 +117,13 @@ function useStockfish() {
       };
 
       worker.onerror = () => {
-        setEngineError('Engine failed');
+        setEngineError('engine');
         setReady(false);
       };
 
       worker.postMessage('uci');
     } catch {
-      setEngineError('Engine missing');
+      setEngineError('engine');
     }
 
     return () => {
@@ -155,38 +131,38 @@ function useStockfish() {
     };
   }, []);
 
-  function analyse(fen, side) {
+  function analyse(fen) {
     return new Promise((resolve, reject) => {
       if (!workerRef.current || !ready) {
-        reject(new Error(engineError || 'Engine loading'));
+        reject(new Error(engineError || 'loading'));
         return;
       }
 
-      sideRef.current = side;
       lastScoreRef.current = null;
       resolveRef.current = resolve;
 
       workerRef.current.postMessage('stop');
       workerRef.current.postMessage('ucinewgame');
       workerRef.current.postMessage(`position fen ${fen}`);
-      workerRef.current.postMessage('go movetime 700');
+      workerRef.current.postMessage('go movetime 650');
     });
   }
 
-  return { analyse, ready, engineError };
+  return { analyse, ready };
 }
 
 function App() {
+  const boardRef = useRef(null);
   const [board, setBoard] = useState(cloneBoard(START));
-  const [side, setSide] = useState('w');
+  const [flipped, setFlipped] = useState(false);
+  const [drag, setDrag] = useState(null);
   const [evalResult, setEvalResult] = useState(null);
   const [thinking, setThinking] = useState(false);
-  const [dragging, setDragging] = useState(null);
-  const [tapPiece, setTapPiece] = useState('');
-  const { analyse, ready, engineError } = useStockfish();
+  const { analyse, ready } = useStockfish();
 
-  const fen = useMemo(() => boardToFen(board, side), [board, side]);
+  const fen = useMemo(() => boardToFen(board), [board]);
   const share = whiteShare(evalResult);
+  const displayBoard = flipped ? [...Array(64).keys()].reverse() : [...Array(64).keys()];
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -195,163 +171,145 @@ function App() {
   }, []);
 
   useEffect(() => {
-    function onMove(event) {
-      if (!dragging) return;
-      setDragging(d => d ? { ...d, x: event.clientX, y: event.clientY } : d);
-    }
+    if (!ready) return;
 
-    function onUp(event) {
-      if (!dragging) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setThinking(true);
 
-      const target = document.elementFromPoint(event.clientX, event.clientY);
-      const square = target?.closest?.('[data-square]');
-      const trash = target?.closest?.('[data-trash]');
-
-      if (square) {
-        const [r, c] = square.dataset.square.split(',').map(Number);
-        const next = cloneBoard(board);
-
-        if (dragging.from) {
-          const [fromR, fromC] = dragging.from;
-          next[fromR][fromC] = '';
-        }
-
-        next[r][c] = dragging.piece;
-        setBoard(next);
-        setEvalResult(null);
-      } else if (trash && dragging.from) {
-        const next = cloneBoard(board);
-        const [fromR, fromC] = dragging.from;
-        next[fromR][fromC] = '';
-        setBoard(next);
-        setEvalResult(null);
+      try {
+        const result = await analyse(fen);
+        if (!cancelled) setEvalResult(result);
+      } catch {
+        if (!cancelled) setEvalResult(null);
+      } finally {
+        if (!cancelled) setThinking(false);
       }
-
-      setDragging(null);
-    }
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
+    }, 420);
 
     return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      cancelled = true;
+      clearTimeout(timer);
     };
-  }, [dragging, board]);
+  }, [fen, ready]);
 
-  function beginDrag(event, piece, from = null) {
+  useEffect(() => {
+    function onPointerMove(event) {
+      if (!drag) return;
+      setDrag(current => current ? { ...current, x: event.clientX, y: event.clientY } : current);
+    }
+
+    function onPointerUp(event) {
+      if (!drag) return;
+
+      const rect = boardRef.current?.getBoundingClientRect();
+      if (!rect) {
+        setDrag(null);
+        return;
+      }
+
+      const inside =
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom;
+
+      const next = cloneBoard(board);
+      const [fromR, fromC] = drag.from;
+      next[fromR][fromC] = '';
+
+      if (inside) {
+        const file = Math.floor(((event.clientX - rect.left) / rect.width) * 8);
+        const rank = Math.floor(((event.clientY - rect.top) / rect.height) * 8);
+        const boardR = flipped ? 7 - rank : rank;
+        const boardC = flipped ? 7 - file : file;
+
+        if (boardR >= 0 && boardR < 8 && boardC >= 0 && boardC < 8) {
+          next[boardR][boardC] = drag.piece;
+        }
+      }
+
+      setBoard(next);
+      setEvalResult(null);
+      setDrag(null);
+    }
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+  }, [drag, board, flipped]);
+
+  function startDrag(event, r, c, piece) {
     event.preventDefault();
-    setTapPiece(piece);
-    setDragging({
+
+    setDrag({
       piece,
-      from,
+      from: [r, c],
       x: event.clientX,
       y: event.clientY
     });
   }
 
-  function placeByTap(r, c) {
-    if (!tapPiece) return;
-
-    const next = cloneBoard(board);
-    next[r][c] = tapPiece;
-    setBoard(next);
+  function reset() {
+    setBoard(cloneBoard(START));
     setEvalResult(null);
   }
 
-  async function runEval() {
-    setThinking(true);
-
-    try {
-      const result = await analyse(fen, side);
-      setEvalResult(result);
-    } catch (error) {
-      alert(error.message);
-    } finally {
-      setThinking(false);
-    }
-  }
-
   return (
-    <div className="page">
-      <main className="app">
-        <section className="evalBar" aria-label="Evaluation bar">
-          <div className="whiteEval" style={{ width: `${share}%` }} />
-          <div className="blackEval" />
-          <div className="evalText">
-            <strong>{scoreLabel(evalResult)}</strong>
-            <span>{detailLabel(evalResult)}</span>
-          </div>
-        </section>
+    <main className="app">
+      <section className="eval">
+        <div className="evalWhite" style={{ width: `${share}%` }} />
+        <div className="evalBlack" />
+        <div className="evalNumber">{scoreText(evalResult, thinking, ready)}</div>
+      </section>
 
-        <section className="board">
-          {board.map((row, r) => row.map((piece, c) => {
-            const dark = (r + c) % 2 === 1;
-            return (
-              <button
-                key={`${r}-${c}`}
-                className={`square ${dark ? 'dark' : 'light'}`}
-                data-square={`${r},${c}`}
-                onClick={() => placeByTap(r, c)}
-              >
-                {piece && (
-                  <span
-                    className={`piece ${isWhite(piece) ? 'whitePiece' : 'blackPiece'}`}
-                    onPointerDown={(event) => beginDrag(event, piece, [r, c])}
-                  >
-                    {pieceGlyph(piece)}
-                  </span>
-                )}
-              </button>
-            );
-          }))}
-        </section>
+      <section className="board" ref={boardRef}>
+        {displayBoard.map((index) => {
+          const r = Math.floor(index / 8);
+          const c = index % 8;
+          const piece = board[r][c];
+          const dark = (r + c) % 2 === 1;
+          const beingDragged = drag && drag.from[0] === r && drag.from[1] === c;
 
-        <div className="turnToggle">
-          <button className={side === 'w' ? 'active' : ''} onClick={() => { setSide('w'); setEvalResult(null); }}>
-            White to move
-          </button>
-          <button className={side === 'b' ? 'active' : ''} onClick={() => { setSide('b'); setEvalResult(null); }}>
-            Black to move
-          </button>
-        </div>
+          return (
+            <div key={`${r}-${c}`} className={`square ${dark ? 'dark' : 'light'}`}>
+              {piece && !beingDragged && (
+                <img
+                  className="piece"
+                  src={pieceSrc(piece)}
+                  alt=""
+                  draggable="false"
+                  onPointerDown={(event) => startDrag(event, r, c, piece)}
+                />
+              )}
+            </div>
+          );
+        })}
+      </section>
 
-        <button className="analyse" onClick={runEval} disabled={!ready || thinking}>
-          {thinking ? 'Analysing…' : ready ? 'Analyse' : (engineError || 'Loading…')}
-        </button>
+      <section className="toolbar">
+        <button onClick={() => setFlipped(value => !value)}>Flip</button>
+        <button onClick={reset}>Reset</button>
+      </section>
 
-        <div className="smallButtons">
-          <button onClick={() => { setBoard(cloneBoard(START)); setEvalResult(null); }}>Start</button>
-          <button onClick={() => { setBoard(cloneBoard(EMPTY)); setEvalResult(null); }}>Empty</button>
-          <button data-trash>Remove</button>
-        </div>
-
-        <section className="pieceTray">
-          {TRAY.map(piece => (
-            <button
-              key={piece}
-              className={`trayPiece ${isWhite(piece) ? 'whitePiece' : 'blackPiece'} ${tapPiece === piece ? 'selected' : ''}`}
-              onClick={() => setTapPiece(piece)}
-              onPointerDown={(event) => beginDrag(event, piece, null)}
-            >
-              {pieceGlyph(piece)}
-            </button>
-          ))}
-        </section>
-      </main>
-
-      {dragging && (
-        <div
-          className={`dragGhost ${isWhite(dragging.piece) ? 'whitePiece' : 'blackPiece'}`}
+      {drag && (
+        <img
+          className="dragPiece"
+          src={pieceSrc(drag.piece)}
+          alt=""
+          draggable="false"
           style={{
-            transform: `translate(${dragging.x - 28}px, ${dragging.y - 34}px)`
+            transform: `translate(${drag.x - 34}px, ${drag.y - 34}px)`
           }}
-        >
-          {pieceGlyph(dragging.piece)}
-        </div>
+        />
       )}
-    </div>
+    </main>
   );
 }
 
 createRoot(document.getElementById('root')).render(<App />);
+

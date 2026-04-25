@@ -1,13 +1,11 @@
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --bg: #312e2b;
-  --panel: #262421;
-  --button: #3c3934;
   --light: #eeeed2;
   --dark: #769656;
-  --green: #81b64c;
-  --green-dark: #6aa33f;
+  --button: #44413c;
+  --buttonActive: #56524c;
 }
 
 * {
@@ -23,8 +21,7 @@ body,
 body {
   margin: 0;
   background: var(--bg);
-  color: white;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 button {
@@ -32,59 +29,49 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
-.page {
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  padding: max(8px, env(safe-area-inset-top)) 8px max(12px, env(safe-area-inset-bottom));
-}
-
 .app {
-  width: min(calc(100vw - 16px), 430px);
-  display: flex;
-  flex-direction: column;
+  width: min(100vw, 430px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: max(8px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-rows: 40px auto 44px;
   gap: 8px;
+  align-content: start;
 }
 
-.evalBar {
+.eval {
   position: relative;
   height: 40px;
-  border-radius: 5px;
-  overflow: hidden;
   display: flex;
+  overflow: hidden;
+  border-radius: 4px;
   background: #111;
 }
 
-.whiteEval {
+.evalWhite {
   height: 100%;
   background: #f2f2f2;
-  transition: width 0.25s ease;
+  transition: width 220ms ease;
 }
 
-.blackEval {
+.evalBlack {
   flex: 1;
   background: #111;
 }
 
-.evalText {
+.evalNumber {
   position: absolute;
-  inset: 0;
+  left: 12px;
+  top: 0;
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 0 12px;
-  color: white;
-  mix-blend-mode: difference;
-  pointer-events: none;
-}
-
-.evalText strong {
+  color: #111;
   font-size: 20px;
-  letter-spacing: -0.03em;
-}
-
-.evalText span {
-  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  pointer-events: none;
 }
 
 .board {
@@ -92,23 +79,18 @@ button {
   aspect-ratio: 1 / 1;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
   background: var(--dark);
   touch-action: none;
+  user-select: none;
 }
 
 .square {
-  appearance: none;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
+  position: relative;
   min-width: 0;
   min-height: 0;
-  display: grid;
-  place-items: center;
   background: var(--light);
-  position: relative;
 }
 
 .square.dark {
@@ -116,143 +98,59 @@ button {
 }
 
 .piece {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  display: grid;
-  place-items: center;
-  font-size: clamp(31px, 11.8vw, 58px);
-  line-height: 1;
+  object-fit: contain;
+  padding: 2.5%;
+  touch-action: none;
   user-select: none;
-  touch-action: none;
   cursor: grab;
+  z-index: 2;
 }
 
-.whitePiece {
-  color: #fff;
-  text-shadow:
-    0 1px 0 #111,
-    1px 0 0 #111,
-    0 -1px 0 #111,
-    -1px 0 0 #111,
-    0 2px 2px rgba(0,0,0,0.45);
-}
-
-.blackPiece {
-  color: #111;
-  text-shadow:
-    0 1px 0 rgba(255,255,255,0.18),
-    0 2px 2px rgba(0,0,0,0.35);
-}
-
-.turnToggle {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-.turnToggle button,
-.analyse,
-.smallButtons button,
-.trayPiece {
-  border: 0;
-  border-radius: 7px;
-  background: var(--button);
-  color: white;
-}
-
-.turnToggle button {
-  padding: 11px 8px;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.turnToggle button.active {
-  background: var(--green);
-  color: #102000;
-  font-weight: 800;
-}
-
-.analyse {
-  padding: 13px 10px;
-  background: var(--green);
-  color: #102000;
-  font-size: 17px;
-  font-weight: 850;
-}
-
-.analyse:active,
-.turnToggle button.active:active {
-  background: var(--green-dark);
-}
-
-.analyse:disabled {
-  opacity: 0.55;
-}
-
-.smallButtons {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
-}
-
-.smallButtons button {
-  padding: 10px 8px;
-  font-size: 13px;
-}
-
-.pieceTray {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
-  padding: 7px;
-  border-radius: 9px;
-  background: var(--panel);
-}
-
-.trayPiece {
-  min-height: 48px;
-  display: grid;
-  place-items: center;
-  font-size: 31px;
-  touch-action: none;
-}
-
-.trayPiece.selected {
-  outline: 2px solid var(--green);
-  outline-offset: 1px;
-}
-
-.dragGhost {
+.dragPiece {
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 999;
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
   pointer-events: none;
-  font-size: 58px;
-  line-height: 1;
+  z-index: 9999;
+  filter: drop-shadow(0 6px 7px rgba(0,0,0,0.35));
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.toolbar button {
+  border: 0;
+  border-radius: 6px;
+  background: var(--button);
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.toolbar button:active {
+  background: var(--buttonActive);
 }
 
 @media (max-width: 390px) {
   .app {
-    width: calc(100vw - 12px);
-    gap: 7px;
-  }
-
-  .page {
     padding-left: 6px;
     padding-right: 6px;
+    gap: 7px;
+    grid-template-rows: 38px auto 42px;
   }
 
-  .evalBar {
+  .eval {
     height: 38px;
   }
-
-  .piece {
-    font-size: clamp(29px, 11.5vw, 52px);
-  }
-
-  .trayPiece {
-    min-height: 44px;
-    font-size: 28px;
-  }
 }
+
