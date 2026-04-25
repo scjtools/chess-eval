@@ -95,18 +95,23 @@ input {
   width: 100%;
   aspect-ratio: 1 / 1;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
   border-radius: 2px;
   overflow: hidden;
   background: var(--dark);
   touch-action: none;
   user-select: none;
+  contain: strict;
 }
 
 .square {
   position: relative;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: var(--light);
 }
 

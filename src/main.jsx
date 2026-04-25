@@ -17,7 +17,11 @@ function cloneBoard(board) {
   return board.map(row => [...row]);
 }
 
-function boardToFen(board) {
+function oppositeSide(side) {
+  return side === 'w' ? 'b' : 'w';
+}
+
+function boardToFen(board, side) {
   const rows = board.map(row => {
     let out = '';
     let empties = 0;
@@ -38,18 +42,19 @@ function boardToFen(board) {
     return out;
   });
 
-  return `${rows.join('/')} w - - 0 1`;
+  return `${rows.join('/')} ${side} - - 0 1`;
 }
 
-function fenToBoard(fen) {
-  const first = fen.trim().split(/\s+/)[0];
-  const rows = first.split('/');
+function fenToPosition(fen) {
+  const parts = fen.trim().split(/\s+/);
+  const rows = parts[0]?.split('/') || [];
+  const side = parts[1] === 'b' ? 'b' : 'w';
 
   if (rows.length !== 8) {
     throw new Error('FEN needs 8 rows');
   }
 
-  return rows.map(row => {
+  const board = rows.map(row => {
     const out = [];
 
     for (const ch of row) {
@@ -68,11 +73,13 @@ function fenToBoard(fen) {
 
     return out;
   });
+
+  return { board, side };
 }
 
-function tryFenToBoard(fen) {
+function tryFenToPosition(fen) {
   try {
-    return fenToBoard(fen);
+    return fenToPosition(fen);
   } catch {
     return null;
   }
@@ -116,13 +123,18 @@ function scoreSide(ev) {
   return ev.cp < -15 ? 'black' : 'white';
 }
 
-function useStockfish(engineKey) {
+function useStockfish(engineKey, side) {
   const workerRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [engineError, setEngineError] = useState('');
   const resolveRef = useRef(null);
   const timeoutRef = useRef(null);
   const lastScoreRef = useRef(null);
+  const sideRef = useRef(side);
+
+  useEffect(() => {
+    sideRef.current = side;
+  }, [side]);
 
   useEffect(() => {
     let worker;
@@ -152,9 +164,11 @@ function useStockfish(engineKey) {
         const score = line.match(/score (cp|mate) (-?\d+)/);
         if (score) {
           const raw = Number(score[2]);
+          const sign = sideRef.current === 'w' ? 1 : -1;
+
           lastScoreRef.current = score[1] === 'cp'
-            ? { type: 'cp', cp: raw }
-            : { type: 'mate', value: raw };
+            ? { type: 'cp', cp: raw * sign }
+            : { type: 'mate', value: raw * sign };
         }
 
         if (line.startsWith('bestmove') && resolveRef.current) {
@@ -215,15 +229,16 @@ function useStockfish(engineKey) {
 function App() {
   const boardRef = useRef(null);
   const [board, setBoard] = useState(cloneBoard(START));
-  const [fenText, setFenText] = useState(boardToFen(START));
+  const [side, setSide] = useState('w');
+  const [fenText, setFenText] = useState(boardToFen(START, 'w'));
   const [flipped, setFlipped] = useState(false);
   const [drag, setDrag] = useState(null);
   const [evalResult, setEvalResult] = useState(null);
   const [thinking, setThinking] = useState(false);
   const [engineKey, setEngineKey] = useState(0);
-  const { analyse, ready } = useStockfish(engineKey);
+  const { analyse, ready } = useStockfish(engineKey, side);
 
-  const fen = useMemo(() => boardToFen(board), [board]);
+  const fen = useMemo(() => boardToFen(board, side), [board, side]);
   const share = whiteShare(evalResult);
   const displayBoard = flipped ? [...Array(64).keys()].reverse() : [...Array(64).keys()];
   const scoreOwner = scoreSide(evalResult);
@@ -286,6 +301,8 @@ function App() {
       const [fromR, fromC] = drag.from;
       next[fromR][fromC] = '';
 
+      let completedBoardMove = false;
+
       if (inside) {
         const file = Math.floor(((event.clientX - rect.left) / rect.width) * 8);
         const rank = Math.floor(((event.clientY - rect.top) / rect.height) * 8);
@@ -297,6 +314,7 @@ function App() {
           const isCastle = isKing && fromR === boardR && Math.abs(boardC - fromC) === 2;
 
           next[boardR][boardC] = drag.piece;
+          completedBoardMove = boardR !== fromR || boardC !== fromC;
 
           if (isCastle) {
             const kingside = boardC > fromC;
@@ -313,6 +331,9 @@ function App() {
       }
 
       setBoard(next);
+      if (completedBoardMove) {
+        setSide(current => oppositeSide(current));
+      }
       setEvalResult(null);
       setDrag(null);
     }
@@ -339,6 +360,7 @@ function App() {
 
   function reset() {
     setBoard(cloneBoard(START));
+    setSide('w');
     setEvalResult(null);
   }
 
@@ -352,9 +374,10 @@ function App() {
     const value = event.target.value;
     setFenText(value);
 
-    const parsed = tryFenToBoard(value);
+    const parsed = tryFenToPosition(value);
     if (parsed) {
-      setBoard(parsed);
+      setBoard(parsed.board);
+      setSide(parsed.side);
       setEvalResult(null);
     }
   }
