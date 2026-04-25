@@ -225,7 +225,23 @@ function App() {
         const boardC = flipped ? 7 - file : file;
 
         if (boardR >= 0 && boardR < 8 && boardC >= 0 && boardC < 8) {
+          const [fromR, fromC] = drag.from;
+          const isKing = drag.piece === 'K' || drag.piece === 'k';
+          const isCastle = isKing && fromR === boardR && Math.abs(boardC - fromC) === 2;
+
           next[boardR][boardC] = drag.piece;
+
+          if (isCastle) {
+            const kingside = boardC > fromC;
+            const rookFromC = kingside ? 7 : 0;
+            const rookToC = kingside ? boardC - 1 : boardC + 1;
+            const expectedRook = drag.piece === 'K' ? 'R' : 'r';
+
+            if (next[boardR][rookFromC] === expectedRook) {
+              next[boardR][rookFromC] = '';
+              next[boardR][rookToC] = expectedRook;
+            }
+          }
         }
       }
 
