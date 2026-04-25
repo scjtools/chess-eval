@@ -6,6 +6,7 @@
   --dark: #769656;
   --button: #44413c;
   --buttonActive: #56524c;
+  --buttonDisabled: #3a3733;
 }
 
 * {
@@ -146,8 +147,8 @@ input {
 
 .toolbar {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: 1.2fr 0.75fr 0.75fr 1.2fr 1.2fr;
+  gap: 6px;
 }
 
 .toolbar button {
@@ -161,6 +162,11 @@ input {
 
 .toolbar button:active {
   background: var(--buttonActive);
+}
+
+.toolbar button:disabled {
+  color: rgba(255,255,255,0.32);
+  background: var(--buttonDisabled);
 }
 
 .fenInput {
@@ -200,6 +206,14 @@ input {
 
   .eval {
     height: 38px;
+  }
+
+  .toolbar {
+    gap: 5px;
+  }
+
+  .toolbar button {
+    font-size: 14px;
   }
 
   .engineInfo {

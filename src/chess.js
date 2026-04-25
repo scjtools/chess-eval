@@ -1,14 +1,29 @@
-import { INITIAL_CASTLING } from './constants.js';
+import { INITIAL_CASTLING, INITIAL_EN_PASSANT } from './constants.js';
+
+const FILES = 'abcdefgh';
 
 export function cloneBoard(board) {
   return board.map(row => [...row]);
+}
+
+export function clonePosition(position) {
+  return {
+    board: cloneBoard(position.board),
+    side: position.side,
+    castling: position.castling,
+    enPassant: position.enPassant,
+  };
 }
 
 export function oppositeSide(side) {
   return side === 'w' ? 'b' : 'w';
 }
 
-export function boardToFen(board, side, castling = '') {
+export function sideName(side) {
+  return side === 'w' ? 'White to move' : 'Black to move';
+}
+
+export function boardToFen(board, side, castling = '', enPassant = INITIAL_EN_PASSANT) {
   const placement = board.map(row => {
     let fenRow = '';
     let empties = 0;
@@ -31,7 +46,7 @@ export function boardToFen(board, side, castling = '') {
     return fenRow;
   }).join('/');
 
-  return `${placement} ${side} ${castling || '-'} - 0 1`;
+  return `${placement} ${side} ${castling || '-'} ${enPassant || '-'} 0 1`;
 }
 
 export function fenToPosition(fen) {
@@ -39,6 +54,7 @@ export function fenToPosition(fen) {
   const placement = parts[0] || '';
   const side = parts[1] === 'b' ? 'b' : 'w';
   const castling = normalizeCastling(parts[2] && parts[2] !== '-' ? parts[2] : '');
+  const enPassant = normalizeEnPassant(parts[3] || '-');
 
   const rows = placement.split('/');
   if (rows.length !== 8) {
@@ -65,7 +81,7 @@ export function fenToPosition(fen) {
     return out;
   });
 
-  return { board, side, castling };
+  return { board, side, castling, enPassant };
 }
 
 export function tryFenToPosition(fen) {
@@ -81,6 +97,15 @@ export function normalizeCastling(value) {
   const set = new Set(String(value || '').split(''));
 
   return order.filter(ch => set.has(ch)).join('');
+}
+
+function normalizeEnPassant(value) {
+  const ep = String(value || '-');
+
+  if (ep === '-') return '-';
+  if (/^[a-h][36]$/.test(ep)) return ep;
+
+  return '-';
 }
 
 function removeCastlingRight(castling, right) {
@@ -110,4 +135,36 @@ export function updateCastlingRights(castling, move) {
   if (capturedPiece === 'r' && toR === 0 && toC === 0) rights = removeCastlingRight(rights, 'q');
 
   return rights;
+}
+
+export function enPassantAfterMove(move) {
+  const { piece, fromR, fromC, toR } = move;
+  const isPawn = piece === 'P' || piece === 'p';
+
+  if (!isPawn) return '-';
+
+  const movedTwoSquares = Math.abs(toR - fromR) === 2;
+  if (!movedTwoSquares) return '-';
+
+  const targetRow = (fromR + toR) / 2;
+  return squareName(targetRow, fromC);
+}
+
+export function isEnPassantCapture(move, currentEnPassant) {
+  const { piece, fromC, toR, toC, capturedPiece } = move;
+  const isPawn = piece === 'P' || piece === 'p';
+  if (!isPawn || capturedPiece) return false;
+  if (Math.abs(toC - fromC) !== 1) return false;
+
+  return squareName(toR, toC) === currentEnPassant;
+}
+
+export function enPassantCapturedPawnSquare(piece, toR, toC) {
+  return piece === 'P'
+    ? [toR + 1, toC]
+    : [toR - 1, toC];
+}
+
+export function squareName(row, col) {
+  return `${FILES[col]}${8 - row}`;
 }

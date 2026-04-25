@@ -7,9 +7,12 @@ A simple iPhone-first chess evaluation page.
 - Fixed square chessboard
 - Drag pieces to move
 - Castling moves the rook automatically
+- En passant target square is tracked in FEN
+- En passant captures remove the captured pawn
 - Side to move alternates after each board move
 - FEN input updates from board moves
-- Pasted FEN updates the board and side to move
+- Pasted FEN updates board, side to move, castling rights, and en passant square
+- Back/forward arrows walk through position history
 - Local Stockfish eval runs automatically
 - Eval bar only shows the score, no best move
 

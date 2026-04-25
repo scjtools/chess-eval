@@ -1,4 +1,5 @@
 import { ENGINE_HASH_MB, ENGINE_MOVETIME_MS, ENGINE_NAME, ENGINE_THREADS } from './constants.js';
+import { sideName } from './chess.js';
 
 export function whiteShare(evalResult) {
   if (!evalResult) return 50;
@@ -29,8 +30,8 @@ export function scoreSide(evalResult) {
   return evalResult.cp < -15 ? 'black' : 'white';
 }
 
-export function engineInfoText(evalResult, thinking, ready) {
-  const base = `${ENGINE_NAME} • ${ENGINE_THREADS} thread • ${ENGINE_HASH_MB} MB`;
+export function engineInfoText(evalResult, thinking, ready, side) {
+  const base = `${ENGINE_NAME} • ${ENGINE_THREADS} thread • ${ENGINE_HASH_MB} MB • ${sideName(side)}`;
 
   if (!ready) return `${base} • loading`;
   if (thinking) return `${base} • analysing`;
