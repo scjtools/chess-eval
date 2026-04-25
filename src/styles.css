@@ -131,6 +131,7 @@ input {
   user-select: none;
   cursor: grab;
   z-index: 2;
+  will-change: transform;
 }
 
 .dragPiece {
@@ -142,6 +143,8 @@ input {
   object-fit: contain;
   pointer-events: none;
   z-index: 9999;
+  will-change: transform;
+  transform-origin: center;
   filter: drop-shadow(0 6px 7px rgba(0,0,0,0.35));
 }
 

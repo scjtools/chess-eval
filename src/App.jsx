@@ -46,6 +46,12 @@ export default function App() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
+  
+
+    ['K','Q','R','B','N','P','k','q','r','b','n','p'].forEach(piece => {
+      const image = new Image();
+      image.src = pieceImageUrl(piece);
+    });
   }, []);
 
   useEffect(() => {
