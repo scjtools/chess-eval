@@ -110,6 +110,12 @@ function scoreText(ev, thinking, ready) {
   return pawns > 0 ? `+${pawns.toFixed(2)}` : pawns.toFixed(2);
 }
 
+function scoreSide(ev) {
+  if (!ev) return 'white';
+  if (ev.type === 'mate') return ev.value < 0 ? 'black' : 'white';
+  return ev.cp < -15 ? 'black' : 'white';
+}
+
 function useStockfish(engineKey) {
   const workerRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -220,7 +226,7 @@ function App() {
   const fen = useMemo(() => boardToFen(board), [board]);
   const share = whiteShare(evalResult);
   const displayBoard = flipped ? [...Array(64).keys()].reverse() : [...Array(64).keys()];
-  const scoreOnBlack = share < 25;
+  const scoreOwner = scoreSide(evalResult);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -358,7 +364,7 @@ function App() {
       <section className="eval">
         <div className="evalWhite" style={{ width: `${share}%` }} />
         <div className="evalBlack" />
-        <div className={`evalNumber ${scoreOnBlack ? 'onBlack' : 'onWhite'}`}>
+        <div className={`evalNumber ${scoreOwner === 'black' ? 'blackSide' : 'whiteSide'}`}>
           {scoreText(evalResult, thinking, ready)}
         </div>
       </section>
