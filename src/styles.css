@@ -36,7 +36,7 @@ input {
   margin: 0 auto;
   padding: max(8px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
   display: grid;
-  grid-template-rows: 40px auto 44px 38px;
+  grid-template-rows: 40px auto 44px 38px 22px;
   gap: 8px;
   align-content: start;
 }
@@ -179,15 +179,31 @@ input {
   box-shadow: inset 0 0 0 2px #6b8f50;
 }
 
+.engineInfo {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  color: #b8b2aa;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 390px) {
   .app {
     padding-left: 6px;
     padding-right: 6px;
     gap: 7px;
-    grid-template-rows: 38px auto 42px 36px;
+    grid-template-rows: 38px auto 42px 36px 21px;
   }
 
   .eval {
     height: 38px;
+  }
+
+  .engineInfo {
+    height: 21px;
+    font-size: 11.5px;
   }
 }

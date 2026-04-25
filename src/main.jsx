@@ -50,9 +50,7 @@ function fenToPosition(fen) {
   const rows = parts[0]?.split('/') || [];
   const side = parts[1] === 'b' ? 'b' : 'w';
 
-  if (rows.length !== 8) {
-    throw new Error('FEN needs 8 rows');
-  }
+  if (rows.length !== 8) throw new Error('FEN needs 8 rows');
 
   const board = rows.map(row => {
     const out = [];
@@ -67,10 +65,7 @@ function fenToPosition(fen) {
       }
     }
 
-    if (out.length !== 8) {
-      throw new Error('Each FEN row needs 8 squares');
-    }
-
+    if (out.length !== 8) throw new Error('Each FEN row needs 8 squares');
     return out;
   });
 
@@ -123,6 +118,18 @@ function scoreSide(ev) {
   return ev.cp < -15 ? 'black' : 'white';
 }
 
+function engineInfoText(ev, thinking, ready) {
+  if (!ready) return 'Stockfish 18 Lite • 1 thread • loading';
+  if (thinking) return 'Stockfish 18 Lite • 1 thread • analysing';
+  if (!ev) return 'Stockfish 18 Lite • 1 thread • 0.65s';
+
+  const depth = ev.depth ? `depth ${ev.depth}` : 'depth —';
+  const time = ev.timeMs ? `${(ev.timeMs / 1000).toFixed(2)}s` : '0.65s';
+  const nodes = ev.nodes ? ` • ${ev.nodes.toLocaleString()} nodes` : '';
+
+  return `Stockfish 18 Lite • 1 thread • ${time} • ${depth}${nodes}`;
+}
+
 function useStockfish(engineKey, side) {
   const workerRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -130,6 +137,7 @@ function useStockfish(engineKey, side) {
   const resolveRef = useRef(null);
   const timeoutRef = useRef(null);
   const lastScoreRef = useRef(null);
+  const lastInfoRef = useRef({ depth: null, timeMs: null, nodes: null });
   const sideRef = useRef(side);
 
   useEffect(() => {
@@ -142,6 +150,7 @@ function useStockfish(engineKey, side) {
     setReady(false);
     setEngineError('');
     lastScoreRef.current = null;
+    lastInfoRef.current = { depth: null, timeMs: null, nodes: null };
 
     try {
       worker = new Worker('/vendor/stockfish-18-lite-single.js');
@@ -161,6 +170,18 @@ function useStockfish(engineKey, side) {
           setReady(true);
         }
 
+        const depth = line.match(/\bdepth (\d+)/);
+        const time = line.match(/\btime (\d+)/);
+        const nodes = line.match(/\bnodes (\d+)/);
+
+        if (depth || time || nodes) {
+          lastInfoRef.current = {
+            depth: depth ? Number(depth[1]) : lastInfoRef.current.depth,
+            timeMs: time ? Number(time[1]) : lastInfoRef.current.timeMs,
+            nodes: nodes ? Number(nodes[1]) : lastInfoRef.current.nodes,
+          };
+        }
+
         const score = line.match(/score (cp|mate) (-?\d+)/);
         if (score) {
           const raw = Number(score[2]);
@@ -173,7 +194,10 @@ function useStockfish(engineKey, side) {
 
         if (line.startsWith('bestmove') && resolveRef.current) {
           clearTimeout(timeoutRef.current);
-          resolveRef.current(lastScoreRef.current || { type: 'cp', cp: 0 });
+          resolveRef.current({
+            ...(lastScoreRef.current || { type: 'cp', cp: 0 }),
+            ...lastInfoRef.current
+          });
           resolveRef.current = null;
         }
       };
@@ -207,11 +231,15 @@ function useStockfish(engineKey, side) {
 
       clearTimeout(timeoutRef.current);
       lastScoreRef.current = null;
+      lastInfoRef.current = { depth: null, timeMs: null, nodes: null };
       resolveRef.current = resolve;
 
       timeoutRef.current = setTimeout(() => {
         if (resolveRef.current) {
-          resolveRef.current(lastScoreRef.current);
+          const fallback = lastScoreRef.current
+            ? { ...lastScoreRef.current, ...lastInfoRef.current }
+            : null;
+          resolveRef.current(fallback);
           resolveRef.current = null;
         }
       }, 2600);
@@ -431,6 +459,10 @@ function App() {
         autoCorrect="off"
         placeholder="Paste FEN"
       />
+
+      <div className="engineInfo">
+        {engineInfoText(evalResult, thinking, ready)}
+      </div>
 
       {drag && (
         <img
