@@ -17,17 +17,14 @@ const PROMOTIONS = ['q', 'r', 'b', 'n'];
 
 export default function App() {
   const boardRef = useRef(null);
-  const dragGhostRef = useRef(null);
-  const latestPointerRef = useRef(null);
-  const rafRef = useRef(null);
   const analysisIdRef = useRef(0);
+  const ghostRef = useRef(null);
 
   const [fen, setFen] = useState(START_FEN);
   const [fenText, setFenText] = useState(START_FEN);
   const [history, setHistory] = useState([START_FEN]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const [drag, setDrag] = useState(null);
   const [pendingPromotion, setPendingPromotion] = useState(null);
   const [evalResult, setEvalResult] = useState(null);
   const [thinking, setThinking] = useState(false);
@@ -49,7 +46,6 @@ export default function App() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
-  
 
     ['K','Q','R','B','N','P','k','q','r','b','n','p'].forEach(piece => {
       const image = new Image();
@@ -94,77 +90,6 @@ export default function App() {
     };
   }, [fen, ready, engineKey, pendingPromotion]);
 
-  useEffect(() => {
-    function onPointerMove(event) {
-      if (!drag) return;
-
-      latestPointerRef.current = {
-        x: event.clientX,
-        y: event.clientY,
-      };
-
-      if (rafRef.current) return;
-
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-
-        const point = latestPointerRef.current;
-        const ghost = dragGhostRef.current;
-
-        if (!point || !ghost) return;
-
-        ghost.style.transform = `translate3d(${point.x - 34}px, ${point.y - 34}px, 0)`;
-      });
-    }
-
-    function onPointerUp(event) {
-      if (!drag) return;
-
-      const rect = boardRef.current?.getBoundingClientRect();
-      if (!rect) {
-        setDrag(null);
-        return;
-      }
-
-      const point = latestPointerRef.current || { x: event.clientX, y: event.clientY };
-      const target = getDropSquare(point, rect);
-      setDrag(null);
-      latestPointerRef.current = null;
-
-      if (!target) return;
-
-      const from = squareName(drag.fromR, drag.fromC);
-      const to = squareName(target.r, target.c);
-
-      if (!legalMoveExists(fen, from, to)) return;
-
-      if (isPromotionMove(fen, from, to)) {
-        setPendingPromotion({
-          from,
-          to,
-          color: drag.piece === drag.piece.toUpperCase() ? 'w' : 'b',
-        });
-        return;
-      }
-
-      const nextFen = moveFen(fen, from, to);
-      if (nextFen) commitFen(nextFen);
-    }
-
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
-  }, [drag, fen, flipped, history, historyIndex]);
-
   function getDropSquare(point, rect) {
     const x = point.clientX ?? point.x;
     const y = point.clientY ?? point.y;
@@ -186,6 +111,84 @@ export default function App() {
     };
   }
 
+  function startDrag(event, row, col, piece) {
+    event.preventDefault();
+
+    const from = squareName(row, col);
+    const src = pieceImageUrl(piece);
+    const ghost = document.createElement('img');
+
+    ghost.src = src;
+    ghost.alt = '';
+    ghost.draggable = false;
+    ghost.className = 'dragPiece';
+    document.body.appendChild(ghost);
+    ghostRef.current = ghost;
+
+    moveGhost(event.clientX, event.clientY);
+
+    function moveGhost(x, y) {
+      if (!ghostRef.current) return;
+      ghostRef.current.style.transform = `translate3d(${x - 34}px, ${y - 34}px, 0)`;
+    }
+
+    function onPointerMove(moveEvent) {
+      moveEvent.preventDefault();
+      moveGhost(moveEvent.clientX, moveEvent.clientY);
+    }
+
+    function onPointerUp(upEvent) {
+      upEvent.preventDefault();
+
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
+
+      const rect = boardRef.current?.getBoundingClientRect();
+
+      removeGhost();
+
+      if (!rect) return;
+
+      const target = getDropSquare(upEvent, rect);
+      if (!target) return;
+
+      const to = squareName(target.r, target.c);
+
+      if (!legalMoveExists(fen, from, to)) return;
+
+      if (isPromotionMove(fen, from, to)) {
+        setPendingPromotion({
+          from,
+          to,
+          color: piece === piece.toUpperCase() ? 'w' : 'b',
+        });
+        return;
+      }
+
+      const nextFen = moveFen(fen, from, to);
+      if (nextFen) commitFen(nextFen);
+    }
+
+    function onPointerCancel() {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
+      removeGhost();
+    }
+
+    function removeGhost() {
+      if (ghostRef.current) {
+        ghostRef.current.remove();
+        ghostRef.current = null;
+      }
+    }
+
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp, { passive: false });
+    window.addEventListener('pointercancel', onPointerCancel, { passive: false });
+  }
+
   function commitFen(nextFen) {
     const parsed = tryParseFen(nextFen);
     if (!parsed) return;
@@ -197,23 +200,6 @@ export default function App() {
     setHistoryIndex(nextHistory.length - 1);
     setFen(parsed);
     setEvalResult(null);
-  }
-
-  function startDrag(event, row, col, piece) {
-    event.preventDefault();
-
-    latestPointerRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-    };
-
-    setDrag({
-      piece,
-      fromR: row,
-      fromC: col,
-      startX: event.clientX,
-      startY: event.clientY,
-    });
   }
 
   function choosePromotion(promotion) {
@@ -290,11 +276,10 @@ export default function App() {
           const square = board[r][c];
           const piece = pieceChar(square);
           const dark = (r + c) % 2 === 1;
-          const beingDragged = drag && drag.fromR === r && drag.fromC === c;
 
           return (
             <div key={`${r}-${c}`} className={`square ${dark ? 'dark' : 'light'}`}>
-              {piece && !beingDragged && (
+              {piece && (
                 <img
                   className="piece"
                   src={pieceImageUrl(piece)}
@@ -334,31 +319,18 @@ export default function App() {
         <section className="promotionOverlay">
           <div className="promotionBox">
             {PROMOTIONS.map(promotion => {
-              const piece = pendingPromotion.color === 'w'
+              const promotionPiece = pendingPromotion.color === 'w'
                 ? promotion.toUpperCase()
                 : promotion;
 
               return (
                 <button key={promotion} onClick={() => choosePromotion(promotion)}>
-                  <img src={pieceImageUrl(piece)} alt="" draggable="false" />
+                  <img src={pieceImageUrl(promotionPiece)} alt="" draggable="false" />
                 </button>
               );
             })}
           </div>
         </section>
-      )}
-
-      {drag && (
-        <img
-          ref={dragGhostRef}
-          className="dragPiece"
-          src={pieceImageUrl(drag.piece)}
-          alt=""
-          draggable="false"
-          style={{
-            transform: `translate3d(${drag.startX - 34}px, ${drag.startY - 34}px, 0)`,
-          }}
-        />
       )}
     </main>
   );

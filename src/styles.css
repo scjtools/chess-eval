@@ -129,12 +129,10 @@ input {
   padding: 2.5%;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
   cursor: grab;
   z-index: 2;
-  -webkit-user-drag: none;
-  user-drag: none;
-  will-change: transform;
-  will-change: transform;
 }
 
 .dragPiece {
