@@ -5,32 +5,36 @@ const root = process.cwd();
 const pkgDir = path.join(root, 'node_modules', 'stockfish');
 const destDir = path.join(root, 'public', 'vendor');
 
-const wanted = [
-  {
-    from: path.join(pkgDir, 'bin', 'stockfish-18-lite-single.js'),
-    to: path.join(destDir, 'stockfish-18-lite-single.js'),
-  },
-  {
-    from: path.join(pkgDir, 'bin', 'stockfish-18-lite-single.wasm'),
-    to: path.join(destDir, 'stockfish-18-lite-single.wasm'),
-  },
+function findFile(dir, name) {
+  if (!fs.existsSync(dir)) return null;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isFile() && entry.name === name) return full;
+    if (entry.isDirectory()) {
+      const found = findFile(full, name);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+const files = [
+  'stockfish-18-lite-single.js',
+  'stockfish-18-lite-single.wasm',
 ];
 
 fs.mkdirSync(destDir, { recursive: true });
 
-let failed = false;
+for (const file of files) {
+  const from = findFile(pkgDir, file);
+  const to = path.join(destDir, file);
 
-for (const file of wanted) {
-  if (!fs.existsSync(file.from)) {
-    console.error(`Missing ${file.from}`);
-    failed = true;
-    continue;
+  if (!from) {
+    console.error(`Missing ${file} somewhere inside ${pkgDir}`);
+    process.exit(1);
   }
 
-  fs.copyFileSync(file.from, file.to);
-  console.log(`Copied ${path.basename(file.to)}`);
-}
-
-if (failed) {
-  process.exit(1);
+  fs.copyFileSync(from, to);
+  console.log(`Copied ${file}`);
 }
